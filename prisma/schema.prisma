@@ -1,0 +1,1118 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── ENUMS ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  HR_MANAGER
+  MANAGER
+  EMPLOYEE
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERN
+  FREELANCE
+}
+
+enum EmploymentStatus {
+  ACTIVE
+  ON_LEAVE
+  SUSPENDED
+  TERMINATED
+  RESIGNED
+}
+
+enum ApplicationStatus {
+  APPLIED
+  SCREENING
+  AI_SCREENED
+  INTERVIEW_SCHEDULED
+  INTERVIEWED
+  OFFER_SENT
+  HIRED
+  REJECTED
+  WITHDRAWN
+}
+
+enum LeaveType {
+  ANNUAL
+  SICK
+  MATERNITY
+  PATERNITY
+  EMERGENCY
+  UNPAID
+  COMPENSATORY
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum PayrollStatus {
+  DRAFT
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum ReviewStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED
+  ACKNOWLEDGED
+}
+
+enum AssetStatus {
+  AVAILABLE
+  ASSIGNED
+  IN_REPAIR
+  RETIRED
+  LOST
+}
+
+enum DocumentType {
+  OFFER_LETTER
+  CONTRACT
+  WARNING_LETTER
+  EXPERIENCE_LETTER
+  CERTIFICATE
+  POLICY
+  PAYSLIP
+  OTHER
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum EnrollmentStatus {
+  ENROLLED
+  IN_PROGRESS
+  COMPLETED
+  DROPPED
+}
+
+enum ShiftType {
+  MORNING
+  AFTERNOON
+  NIGHT
+  FLEXIBLE
+}
+
+enum ExitStatus {
+  PENDING
+  IN_PROGRESS
+  CLEARED
+  COMPLETED
+}
+
+enum WorkflowStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum NotificationType {
+  INFO
+  WARNING
+  SUCCESS
+  ERROR
+  REMINDER
+}
+
+enum SubscriptionPlan {
+  FREE
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+// ─── MULTI-TENANT ─────────────────────────────────────────────────────────────
+
+model Company {
+  id               String           @id @default(cuid())
+  name             String
+  slug             String           @unique
+  email            String           @unique
+  phone            String?
+  address          String?
+  city             String?
+  country          String?
+  logo             String?
+  website          String?
+  industry         String?
+  size             String?
+  taxId            String?
+  plan             SubscriptionPlan @default(FREE)
+  planExpiresAt    DateTime?
+  isActive         Boolean          @default(true)
+  settings         Json?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  users              User[]
+  departments        Department[]
+  positions          Position[]
+  employees          Employee[]
+  jobPostings        JobPosting[]
+  attendanceLogs     AttendanceLog[]
+  leaveTypeSettings  LeaveTypeSetting[]
+  leaveRequests      LeaveRequest[]
+  payrollRuns        PayrollRun[]
+  performanceReviews PerformanceReview[]
+  kpis               KPI[]
+  documents          Document[]
+  assets             Asset[]
+  courses            Course[]
+  shifts             Shift[]
+  exitRequests       ExitRequest[]
+  workflows          Workflow[]
+  notifications      Notification[]
+  holidays           Holiday[]
+  announcements      Announcement[]
+  chatMessages       ChatMessage[]
+  policies           CompanyPolicy[]
+
+  @@map("companies")
+}
+
+// ─── AUTH & USERS ─────────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String
+  name          String
+  role          UserRole  @default(EMPLOYEE)
+  avatar        String?
+  phone         String?
+  isActive      Boolean   @default(true)
+  emailVerified DateTime?
+  lastLoginAt   DateTime?
+  companyId     String?
+  company       Company?  @relation(fields: [companyId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  employee      Employee?
+  sessions      Session[]
+  notifications Notification[]
+  chatMessages  ChatMessage[]
+  workflowActions WorkflowAction[]
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  userAgent String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@map("sessions")
+}
+
+// ─── ORGANIZATION ─────────────────────────────────────────────────────────────
+
+model Department {
+  id          String      @id @default(cuid())
+  name        String
+  code        String?
+  description String?
+  companyId   String
+  company     Company     @relation(fields: [companyId], references: [id])
+  managerId   String?
+  manager     Employee?   @relation("DepartmentManager", fields: [managerId], references: [id])
+  parentId    String?
+  parent      Department? @relation("SubDepartments", fields: [parentId], references: [id])
+  children    Department[] @relation("SubDepartments")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  employees   Employee[]
+  positions   Position[]
+  shifts      Shift[]
+
+  @@unique([companyId, name])
+  @@map("departments")
+}
+
+model Position {
+  id           String      @id @default(cuid())
+  title        String
+  code         String?
+  description  String?
+  minSalary    Float?
+  maxSalary    Float?
+  isActive     Boolean     @default(true)
+  companyId    String
+  company      Company     @relation(fields: [companyId], references: [id])
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  employees    Employee[]
+  jobPostings  JobPosting[]
+
+  @@map("positions")
+}
+
+// ─── EMPLOYEE ─────────────────────────────────────────────────────────────────
+
+model Employee {
+  id               String           @id @default(cuid())
+  employeeId       String
+  userId           String           @unique
+  user             User             @relation(fields: [userId], references: [id])
+  companyId        String
+  company          Company          @relation(fields: [companyId], references: [id])
+  departmentId     String?
+  department       Department?      @relation(fields: [departmentId], references: [id])
+  positionId       String?
+  position         Position?        @relation(fields: [positionId], references: [id])
+  managerId        String?
+  manager          Employee?        @relation("EmployeeManager", fields: [managerId], references: [id])
+  directReports    Employee[]       @relation("EmployeeManager")
+  managedDepts     Department[]     @relation("DepartmentManager")
+
+  firstName        String
+  lastName         String
+  dateOfBirth      DateTime?
+  gender           String?
+  nationality      String?
+  maritalStatus    String?
+  nationalId       String?
+  passportNumber   String?
+  bloodGroup       String?
+
+  personalEmail    String?
+  workEmail        String?
+  phone            String?
+  emergencyName    String?
+  emergencyPhone   String?
+  emergencyRelation String?
+
+  address          String?
+  city             String?
+  country          String?
+
+  joinDate         DateTime
+  probationEndDate DateTime?
+  confirmationDate DateTime?
+  employmentType   EmploymentType   @default(FULL_TIME)
+  employmentStatus EmploymentStatus @default(ACTIVE)
+
+  basicSalary      Float            @default(0)
+  currency         String           @default("USD")
+  bankName         String?
+  bankAccount      String?
+  bankIban         String?
+
+  skills           String[]
+  profilePhoto     String?
+  resume           String?
+
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  attendanceLogs   AttendanceLog[]
+  leaveRequests    LeaveRequest[]
+  payrollItems     PayrollItem[]
+  reviewsGiven     PerformanceReview[] @relation("Reviewer")
+  reviewsReceived  PerformanceReview[] @relation("Reviewee")
+  kpis             KPI[]
+  assets           AssetAssignment[]
+  documents        EmployeeDocument[]
+  enrollments      CourseEnrollment[]
+  shiftAssignments ShiftAssignment[]
+  exitRequest      ExitRequest?
+  onboarding       Onboarding?
+
+  @@unique([companyId, employeeId])
+  @@map("employees")
+}
+
+// ─── ONBOARDING ───────────────────────────────────────────────────────────────
+
+model Onboarding {
+  id          String   @id @default(cuid())
+  employeeId  String   @unique
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  status      String   @default("PENDING")
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tasks       OnboardingTask[]
+
+  @@map("onboardings")
+}
+
+model OnboardingTask {
+  id           String     @id @default(cuid())
+  onboardingId String
+  onboarding   Onboarding @relation(fields: [onboardingId], references: [id])
+  title        String
+  description  String?
+  category     String
+  isCompleted  Boolean    @default(false)
+  completedAt  DateTime?
+  dueDate      DateTime?
+  assignedTo   String?
+  order        Int        @default(0)
+
+  @@map("onboarding_tasks")
+}
+
+// ─── RECRUITMENT ──────────────────────────────────────────────────────────────
+
+model JobPosting {
+  id               String         @id @default(cuid())
+  companyId        String
+  company          Company        @relation(fields: [companyId], references: [id])
+  positionId       String?
+  position         Position?      @relation(fields: [positionId], references: [id])
+  title            String
+  description      String
+  requirements     String?
+  responsibilities String?
+  skills           String[]
+  experience       String?
+  education        String?
+  employmentType   EmploymentType @default(FULL_TIME)
+  location         String?
+  isRemote         Boolean        @default(false)
+  salaryMin        Float?
+  salaryMax        Float?
+  currency         String         @default("USD")
+  deadline         DateTime?
+  isActive         Boolean        @default(true)
+  isPublished      Boolean        @default(false)
+  publishedAt      DateTime?
+  openings         Int            @default(1)
+  views            Int            @default(0)
+  createdById      String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  applications     Application[]
+
+  @@map("job_postings")
+}
+
+model Candidate {
+  id           String        @id @default(cuid())
+  firstName    String
+  lastName     String
+  email        String
+  phone        String?
+  location     String?
+  linkedIn     String?
+  portfolio    String?
+  resumeUrl    String?
+  skills       String[]
+  experience   Int?
+  education    String?
+  summary      String?
+  source       String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  applications Application[]
+
+  @@map("candidates")
+}
+
+model Application {
+  id              String            @id @default(cuid())
+  jobPostingId    String
+  jobPosting      JobPosting        @relation(fields: [jobPostingId], references: [id])
+  candidateId     String
+  candidate       Candidate         @relation(fields: [candidateId], references: [id])
+  status          ApplicationStatus @default(APPLIED)
+  coverLetter     String?
+  resumeUrl       String?
+  aiScore         Float?
+  aiSummary       String?
+  aiSkillsMatch   Json?
+  notes           String?
+  rejectionReason String?
+  appliedAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  interviews      Interview[]
+  aiScreening     AIScreening?
+
+  @@unique([jobPostingId, candidateId])
+  @@map("applications")
+}
+
+model AIScreening {
+  id              String      @id @default(cuid())
+  applicationId   String      @unique
+  application     Application @relation(fields: [applicationId], references: [id])
+  overallScore    Float
+  skillsScore     Float
+  experienceScore Float
+  educationScore  Float
+  matchedSkills   String[]
+  missingSkills   String[]
+  strengths       String[]
+  weaknesses      String[]
+  recommendation  String
+  rawResponse     String?
+  createdAt       DateTime    @default(now())
+
+  @@map("ai_screenings")
+}
+
+model Interview {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id])
+  scheduledAt   DateTime
+  duration      Int         @default(60)
+  type          String      @default("VIDEO")
+  meetingLink   String?
+  location      String?
+  interviewers  String[]
+  status        String      @default("SCHEDULED")
+  feedback      String?
+  rating        Float?
+  aiEvaluation  Json?
+  notes         String?
+  completedAt   DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("interviews")
+}
+
+// ─── ATTENDANCE ───────────────────────────────────────────────────────────────
+
+model AttendanceLog {
+  id         String    @id @default(cuid())
+  employeeId String
+  employee   Employee  @relation(fields: [employeeId], references: [id])
+  companyId  String
+  company    Company   @relation(fields: [companyId], references: [id])
+  date       DateTime  @db.Date
+  checkIn    DateTime?
+  checkOut   DateTime?
+  totalHours Float?
+  overtime   Float?
+  status     String    @default("PRESENT")
+  notes      String?
+  ipAddress  String?
+  location   Json?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([employeeId, date])
+  @@map("attendance_logs")
+}
+
+model Holiday {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  name        String
+  date        DateTime @db.Date
+  type        String   @default("PUBLIC")
+  isOptional  Boolean  @default(false)
+  description String?
+  createdAt   DateTime @default(now())
+
+  @@map("holidays")
+}
+
+// ─── LEAVE ────────────────────────────────────────────────────────────────────
+
+model LeaveTypeSetting {
+  id              String        @id @default(cuid())
+  companyId       String
+  company         Company       @relation(fields: [companyId], references: [id])
+  leaveType       LeaveType
+  name            String
+  daysAllowed     Float         @default(0)
+  carryForward    Boolean       @default(false)
+  maxCarryForward Float?
+  isPaid          Boolean       @default(true)
+  description     String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  leaveRequests   LeaveRequest[]
+
+  @@unique([companyId, leaveType])
+  @@map("leave_type_settings")
+}
+
+model LeaveRequest {
+  id            String           @id @default(cuid())
+  employeeId    String
+  employee      Employee         @relation(fields: [employeeId], references: [id])
+  companyId     String
+  company       Company          @relation(fields: [companyId], references: [id])
+  leaveTypeId   String
+  leaveType     LeaveTypeSetting @relation(fields: [leaveTypeId], references: [id])
+  startDate     DateTime         @db.Date
+  endDate       DateTime         @db.Date
+  totalDays     Float
+  reason        String
+  status        LeaveStatus      @default(PENDING)
+  approvedById  String?
+  approvedAt    DateTime?
+  rejectionNote String?
+  attachmentUrl String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@map("leave_requests")
+}
+
+model LeaveBalance {
+  id          String   @id @default(cuid())
+  employeeId  String
+  leaveTypeId String
+  year        Int
+  allocated   Float    @default(0)
+  used        Float    @default(0)
+  pending     Float    @default(0)
+  remaining   Float    @default(0)
+  updatedAt   DateTime @updatedAt
+
+  @@unique([employeeId, leaveTypeId, year])
+  @@map("leave_balances")
+}
+
+// ─── PAYROLL ──────────────────────────────────────────────────────────────────
+
+model PayrollRun {
+  id              String        @id @default(cuid())
+  companyId       String
+  company         Company       @relation(fields: [companyId], references: [id])
+  month           Int
+  year            Int
+  status          PayrollStatus @default(DRAFT)
+  totalGross      Float         @default(0)
+  totalNet        Float         @default(0)
+  totalDeductions Float         @default(0)
+  processedAt     DateTime?
+  processedBy     String?
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  items           PayrollItem[]
+
+  @@unique([companyId, month, year])
+  @@map("payroll_runs")
+}
+
+model PayrollItem {
+  id           String     @id @default(cuid())
+  payrollRunId String
+  payrollRun   PayrollRun @relation(fields: [payrollRunId], references: [id])
+  employeeId   String
+  employee     Employee   @relation(fields: [employeeId], references: [id])
+  basicSalary  Float
+  allowances   Json?
+  deductions   Json?
+  overtime     Float      @default(0)
+  bonus        Float      @default(0)
+  tax          Float      @default(0)
+  grossPay     Float
+  netPay       Float
+  workingDays  Int        @default(0)
+  presentDays  Int        @default(0)
+  leaveDays    Int        @default(0)
+  absentDays   Int        @default(0)
+  payslipUrl   String?
+  payslipSentAt DateTime?
+  createdAt    DateTime   @default(now())
+
+  @@unique([payrollRunId, employeeId])
+  @@map("payroll_items")
+}
+
+model SalaryStructure {
+  id            String   @id @default(cuid())
+  employeeId    String   @unique
+  basicSalary   Float
+  allowances    Json?
+  deductions    Json?
+  effectiveDate DateTime
+  currency      String   @default("USD")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("salary_structures")
+}
+
+// ─── PERFORMANCE ──────────────────────────────────────────────────────────────
+
+model PerformanceReview {
+  id             String       @id @default(cuid())
+  companyId      String
+  company        Company      @relation(fields: [companyId], references: [id])
+  revieweeId     String
+  reviewee       Employee     @relation("Reviewee", fields: [revieweeId], references: [id])
+  reviewerId     String
+  reviewer       Employee     @relation("Reviewer", fields: [reviewerId], references: [id])
+  period         String
+  year           Int
+  type           String       @default("ANNUAL")
+  status         ReviewStatus @default(DRAFT)
+  overallScore   Float?
+  selfRating     Float?
+  managerRating  Float?
+  feedback       String?
+  goals          Json?
+  achievements   Json?
+  areasToImprove Json?
+  submittedAt    DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  kpiReviews     KPIReview[]
+
+  @@map("performance_reviews")
+}
+
+model KPI {
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  employeeId  String
+  employee    Employee  @relation(fields: [employeeId], references: [id])
+  title       String
+  description String?
+  target      Float
+  actual      Float?
+  unit        String?
+  weight      Float     @default(1)
+  category    String?
+  quarter     Int?
+  year        Int
+  status      String    @default("ACTIVE")
+  dueDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  reviews     KPIReview[]
+
+  @@map("kpis")
+}
+
+model KPIReview {
+  id        String            @id @default(cuid())
+  reviewId  String
+  review    PerformanceReview @relation(fields: [reviewId], references: [id])
+  kpiId     String
+  kpi       KPI               @relation(fields: [kpiId], references: [id])
+  score     Float?
+  notes     String?
+  createdAt DateTime          @default(now())
+
+  @@map("kpi_reviews")
+}
+
+// ─── DOCUMENTS ────────────────────────────────────────────────────────────────
+
+model Document {
+  id          String       @id @default(cuid())
+  companyId   String
+  company     Company      @relation(fields: [companyId], references: [id])
+  title       String
+  type        DocumentType @default(OTHER)
+  description String?
+  fileUrl     String
+  fileSize    Int?
+  mimeType    String?
+  isPublic    Boolean      @default(false)
+  expiresAt   DateTime?
+  version     Int          @default(1)
+  tags        String[]
+  createdById String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  employeeDocs EmployeeDocument[]
+  versions     DocumentVersion[]
+
+  @@map("documents")
+}
+
+model DocumentVersion {
+  id          String   @id @default(cuid())
+  documentId  String
+  document    Document @relation(fields: [documentId], references: [id])
+  version     Int
+  fileUrl     String
+  notes       String?
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@map("document_versions")
+}
+
+model EmployeeDocument {
+  id          String   @id @default(cuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  documentId  String
+  document    Document @relation(fields: [documentId], references: [id])
+  sharedAt    DateTime @default(now())
+  sharedById  String?
+  expiresAt   DateTime?
+  notes       String?
+
+  @@unique([employeeId, documentId])
+  @@map("employee_documents")
+}
+
+// ─── ASSETS ───────────────────────────────────────────────────────────────────
+
+model Asset {
+  id             String      @id @default(cuid())
+  companyId      String
+  company        Company     @relation(fields: [companyId], references: [id])
+  assetId        String
+  name           String
+  category       String
+  brand          String?
+  model          String?
+  serialNumber   String?
+  purchaseDate   DateTime?
+  purchasePrice  Float?
+  currentValue   Float?
+  status         AssetStatus @default(AVAILABLE)
+  location       String?
+  notes          String?
+  imageUrl       String?
+  warrantyExpiry DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  assignments    AssetAssignment[]
+
+  @@unique([companyId, assetId])
+  @@map("assets")
+}
+
+model AssetAssignment {
+  id           String    @id @default(cuid())
+  assetId      String
+  asset        Asset     @relation(fields: [assetId], references: [id])
+  employeeId   String
+  employee     Employee  @relation(fields: [employeeId], references: [id])
+  assignedAt   DateTime  @default(now())
+  returnedAt   DateTime?
+  condition    String?
+  notes        String?
+  assignedById String?
+
+  @@map("asset_assignments")
+}
+
+// ─── TRAINING & LMS ───────────────────────────────────────────────────────────
+
+model Course {
+  id           String       @id @default(cuid())
+  companyId    String
+  company      Company      @relation(fields: [companyId], references: [id])
+  title        String
+  description  String?
+  category     String?
+  thumbnail    String?
+  duration     Int?
+  status       CourseStatus @default(DRAFT)
+  isMandatory  Boolean      @default(false)
+  passingScore Float?
+  createdById  String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  modules     CourseModule[]
+  enrollments CourseEnrollment[]
+
+  @@map("courses")
+}
+
+model CourseModule {
+  id          String   @id @default(cuid())
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id])
+  title       String
+  description String?
+  type        String   @default("VIDEO")
+  contentUrl  String?
+  content     String?
+  duration    Int?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  progress    ModuleProgress[]
+
+  @@map("course_modules")
+}
+
+model CourseEnrollment {
+  id          String           @id @default(cuid())
+  courseId    String
+  course      Course           @relation(fields: [courseId], references: [id])
+  employeeId  String
+  employee    Employee         @relation(fields: [employeeId], references: [id])
+  status      EnrollmentStatus @default(ENROLLED)
+  score       Float?
+  progress    Float            @default(0)
+  enrolledAt  DateTime         @default(now())
+  completedAt DateTime?
+  certificate String?
+
+  moduleProgress ModuleProgress[]
+
+  @@unique([courseId, employeeId])
+  @@map("course_enrollments")
+}
+
+model ModuleProgress {
+  id           String           @id @default(cuid())
+  enrollmentId String
+  enrollment   CourseEnrollment @relation(fields: [enrollmentId], references: [id])
+  moduleId     String
+  module       CourseModule     @relation(fields: [moduleId], references: [id])
+  isCompleted  Boolean          @default(false)
+  completedAt  DateTime?
+  score        Float?
+  timeSpent    Int?
+
+  @@unique([enrollmentId, moduleId])
+  @@map("module_progress")
+}
+
+// ─── SHIFTS ───────────────────────────────────────────────────────────────────
+
+model Shift {
+  id           String      @id @default(cuid())
+  companyId    String
+  company      Company     @relation(fields: [companyId], references: [id])
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+  name         String
+  type         ShiftType   @default(MORNING)
+  startTime    String
+  endTime      String
+  workingDays  String[]
+  breakMinutes Int         @default(60)
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  assignments  ShiftAssignment[]
+
+  @@map("shifts")
+}
+
+model ShiftAssignment {
+  id         String    @id @default(cuid())
+  shiftId    String
+  shift      Shift     @relation(fields: [shiftId], references: [id])
+  employeeId String
+  employee   Employee  @relation(fields: [employeeId], references: [id])
+  startDate  DateTime  @db.Date
+  endDate    DateTime? @db.Date
+  isActive   Boolean   @default(true)
+  notes      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@map("shift_assignments")
+}
+
+// ─── EXIT MANAGEMENT ──────────────────────────────────────────────────────────
+
+model ExitRequest {
+  id                 String      @id @default(cuid())
+  employeeId         String      @unique
+  employee           Employee    @relation(fields: [employeeId], references: [id])
+  companyId          String
+  company            Company     @relation(fields: [companyId], references: [id])
+  resignationType    String      @default("RESIGNATION")
+  lastWorkingDate    DateTime
+  reason             String?
+  noticePeriod       Int         @default(30)
+  status             ExitStatus  @default(PENDING)
+  exitInterviewDate  DateTime?
+  exitInterviewNotes String?
+  finalSettlement    Float?
+  settledAt          DateTime?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  clearanceItems     ClearanceItem[]
+
+  @@map("exit_requests")
+}
+
+model ClearanceItem {
+  id            String      @id @default(cuid())
+  exitRequestId String
+  exitRequest   ExitRequest @relation(fields: [exitRequestId], references: [id])
+  department    String
+  item          String
+  status        String      @default("PENDING")
+  clearedById   String?
+  clearedAt     DateTime?
+  notes         String?
+  createdAt     DateTime    @default(now())
+
+  @@map("clearance_items")
+}
+
+// ─── WORKFLOWS & NOTIFICATIONS ────────────────────────────────────────────────
+
+model Workflow {
+  id          String         @id @default(cuid())
+  companyId   String
+  company     Company        @relation(fields: [companyId], references: [id])
+  name        String
+  type        String
+  entityId    String
+  entityType  String
+  status      WorkflowStatus @default(PENDING)
+  currentStep Int            @default(0)
+  data        Json?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  actions     WorkflowAction[]
+
+  @@map("workflows")
+}
+
+model WorkflowAction {
+  id         String         @id @default(cuid())
+  workflowId String
+  workflow   Workflow       @relation(fields: [workflowId], references: [id])
+  step       Int
+  action     String
+  actorId    String?
+  actor      User?          @relation(fields: [actorId], references: [id])
+  status     WorkflowStatus @default(PENDING)
+  notes      String?
+  createdAt  DateTime       @default(now())
+
+  @@map("workflow_actions")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  companyId String
+  company   Company          @relation(fields: [companyId], references: [id])
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  type      NotificationType @default(INFO)
+  title     String
+  message   String
+  link      String?
+  isRead    Boolean          @default(false)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@map("notifications")
+}
+
+model Announcement {
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  title       String
+  content     String
+  type        String    @default("GENERAL")
+  audience    String    @default("ALL")
+  publishedAt DateTime?
+  expiresAt   DateTime?
+  isPinned    Boolean   @default(false)
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("announcements")
+}
+
+// ─── AI & CHAT ────────────────────────────────────────────────────────────────
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  sessionId String
+  role      String
+  content   String
+  tokens    Int?
+  createdAt DateTime @default(now())
+
+  @@map("chat_messages")
+}
+
+model CompanyPolicy {
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  title       String
+  category    String
+  content     String
+  version     String    @default("1.0")
+  isActive    Boolean   @default(true)
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("company_policies")
+}
+
+// ─── AUDIT ────────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  companyId String?
+  action    String
+  entity    String
+  entityId  String?
+  changes   Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}

@@ -1,58 +1,43 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import Groq from "groq-sdk";
 
-let _genai: GoogleGenerativeAI | null = null;
-function getGenAI(): GoogleGenerativeAI {
-  if (!_genai) {
-    if (!process.env.GOOGLE_AI_API_KEY) throw new Error("GOOGLE_AI_API_KEY is not set");
-    _genai = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY);
+let _groq: Groq | null = null;
+function getGroq(): Groq {
+  if (!_groq) {
+    if (!process.env.GROQ_API_KEY) throw new Error("GROQ_API_KEY is not set");
+    _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
   }
-  return _genai;
+  return _groq;
 }
 
-const MODEL = "gemini-1.5-flash";
+const MODEL = "llama3-8b-8192";
 
-async function generate(prompt: string, systemInstruction?: string): Promise<string> {
-  const model = getGenAI().getGenerativeModel({ model: MODEL, systemInstruction });
-  const result = await model.generateContent(prompt);
-  return result.response.text();
+async function chat(
+  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>
+): Promise<string> {
+  const completion = await getGroq().chat.completions.create({
+    model: MODEL,
+    messages,
+    max_tokens: 1024,
+    temperature: 0.7,
+  });
+  return completion.choices[0]?.message?.content ?? "";
 }
 
 export async function parseResume(resumeText: string, jobDescription?: string) {
-  const prompt = `You are an expert HR recruiter and resume parser. Parse the following resume and extract structured information.
-
-${jobDescription ? `Job Description:\n${jobDescription}\n\n` : ""}Resume Text:
-${resumeText}
-
-Return a JSON object with this exact structure (no markdown, just JSON):
+  const text = await chat([
+    {
+      role: "system",
+      content: "You are an expert HR recruiter. Return only valid JSON with no markdown or extra text.",
+    },
+    {
+      role: "user",
+      content: `Parse this resume and return a JSON object with this exact structure:
 {
-  "personalInfo": {
-    "name": string,
-    "email": string,
-    "phone": string,
-    "location": string,
-    "linkedIn": null,
-    "portfolio": null
-  },
+  "personalInfo": { "name": string, "email": string, "phone": string, "location": string, "linkedIn": null, "portfolio": null },
   "summary": string,
   "skills": string[],
-  "experience": [
-    {
-      "company": string,
-      "title": string,
-      "startDate": string,
-      "endDate": string,
-      "description": string,
-      "achievements": string[]
-    }
-  ],
-  "education": [
-    {
-      "institution": string,
-      "degree": string,
-      "field": string,
-      "graduationYear": string
-    }
-  ],
+  "experience": [{ "company": string, "title": string, "startDate": string, "endDate": string, "description": string, "achievements": string[] }],
+  "education": [{ "institution": string, "degree": string, "field": string, "graduationYear": string }],
   "certifications": string[],
   "languages": string[],
   "totalYearsExperience": number${jobDescription ? `,
@@ -62,9 +47,12 @@ Return a JSON object with this exact structure (no markdown, just JSON):
   "strengths": string[],
   "weaknesses": string[],
   "recommendation": "STRONG_RECOMMEND" | "RECOMMEND" | "MAYBE" | "REJECT"` : ""}
-}`;
+}
 
-  const text = await generate(prompt);
+${jobDescription ? `Job Description:\n${jobDescription}\n\n` : ""}Resume:\n${resumeText}`,
+    },
+  ]);
+
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error("Failed to parse AI response");
   return JSON.parse(jsonMatch[0]);
@@ -76,20 +64,22 @@ export async function generateInterviewQuestions(
   experience: string,
   level: "JUNIOR" | "MID" | "SENIOR" = "MID"
 ) {
-  const prompt = `Generate 10 targeted interview questions for a ${level} ${jobTitle} position.
-Required skills: ${skills.join(", ")}
-Required experience: ${experience}
+  const text = await chat([
+    {
+      role: "system",
+      content: "You are an expert interviewer. Return only a valid JSON array with no markdown.",
+    },
+    {
+      role: "user",
+      content: `Generate 10 interview questions for a ${level} ${jobTitle}.
+Skills required: ${skills.join(", ")}
+Experience required: ${experience}
 
-Return a JSON array only (no markdown):
-[{
-  "category": "Technical" | "Behavioral" | "Situational" | "Cultural",
-  "question": string,
-  "purpose": string,
-  "expectedAnswer": string,
-  "followUps": string[]
-}]`;
+Return a JSON array:
+[{ "category": "Technical"|"Behavioral"|"Situational"|"Cultural", "question": string, "purpose": string, "expectedAnswer": string, "followUps": string[] }]`,
+    },
+  ]);
 
-  const text = await generate(prompt);
   const jsonMatch = text.match(/\[[\s\S]*\]/);
   if (!jsonMatch) throw new Error("Failed to parse AI response");
   return JSON.parse(jsonMatch[0]);
@@ -101,24 +91,30 @@ export async function evaluateInterview(
 ) {
   const qa = questions.map((q) => `Q: ${q.question}\nA: ${q.answer}`).join("\n\n");
 
-  const prompt = `Evaluate this interview for a ${jobTitle} position. Score each answer and provide overall assessment.
-
-${qa}
-
-Return JSON only (no markdown):
+  const text = await chat([
+    {
+      role: "system",
+      content: "You are an expert interviewer evaluator. Return only valid JSON with no markdown.",
+    },
+    {
+      role: "user",
+      content: `Evaluate this ${jobTitle} interview and return JSON:
 {
-  "overallScore": number (0-100),
-  "technicalScore": number (0-100),
-  "communicationScore": number (0-100),
-  "problemSolvingScore": number (0-100),
+  "overallScore": number,
+  "technicalScore": number,
+  "communicationScore": number,
+  "problemSolvingScore": number,
   "answers": [{ "question": string, "score": number, "feedback": string }],
   "strengths": string[],
   "concerns": string[],
-  "recommendation": "HIRE" | "CONSIDER" | "REJECT",
+  "recommendation": "HIRE"|"CONSIDER"|"REJECT",
   "summary": string
-}`;
+}
 
-  const text = await generate(prompt);
+${qa}`,
+    },
+  ]);
+
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error("Failed to parse AI response");
   return JSON.parse(jsonMatch[0]);
@@ -129,59 +125,39 @@ export async function generateHRDocument(
   data: Record<string, string>
 ) {
   const templates: Record<string, string> = {
-    OFFER_LETTER: `Generate a professional offer letter for:
-Employee: ${data.employeeName}, Position: ${data.position}, Department: ${data.department}
-Salary: ${data.salary}, Start Date: ${data.startDate}, Company: ${data.companyName}
-Include: greeting, offer details, salary, benefits summary, terms, acceptance request.`,
-
-    WARNING_LETTER: `Generate a formal warning letter for:
-Employee: ${data.employeeName}, Issue: ${data.issue}, Date of Incident: ${data.incidentDate}
-Company: ${data.companyName}, Manager: ${data.managerName}
-Include: formal tone, description of issue, consequences, expected improvement, signature block.`,
-
-    EXPERIENCE_LETTER: `Generate an experience letter for:
-Employee: ${data.employeeName}, Position: ${data.position}, Department: ${data.department}
-Join Date: ${data.joinDate}, Last Date: ${data.lastDate}, Company: ${data.companyName}
-Include: confirmation of employment, role description, conduct statement, best wishes.`,
-
-    POLICY: `Generate an HR policy document for:
-Policy: ${data.policyName}, Company: ${data.companyName}, Effective Date: ${data.effectiveDate}
-Create a comprehensive policy with sections: Purpose, Scope, Policy Statement, Procedures, Responsibilities, Violations.`,
+    OFFER_LETTER: `Write a professional offer letter. Employee: ${data.employeeName}, Position: ${data.position}, Department: ${data.department}, Salary: ${data.salary}, Start Date: ${data.startDate}, Company: ${data.companyName}.`,
+    WARNING_LETTER: `Write a formal warning letter. Employee: ${data.employeeName}, Issue: ${data.issue}, Date: ${data.incidentDate}, Company: ${data.companyName}, Manager: ${data.managerName}.`,
+    EXPERIENCE_LETTER: `Write an experience letter. Employee: ${data.employeeName}, Position: ${data.position}, Join Date: ${data.joinDate}, Last Date: ${data.lastDate}, Company: ${data.companyName}.`,
+    POLICY: `Write a comprehensive HR policy document. Policy: ${data.policyName}, Company: ${data.companyName}, Effective Date: ${data.effectiveDate}. Include: Purpose, Scope, Policy Statement, Procedures, Responsibilities, Violations.`,
   };
 
-  return generate(templates[type]);
+  const result = await chat([
+    { role: "system", content: "You are an expert HR document writer. Write professional documents." },
+    { role: "user", content: templates[type] },
+  ]);
+  return result;
 }
 
 export async function hrChatbot(
   messages: Array<{ role: "user" | "assistant"; content: string }>,
   companyPolicies?: string
 ) {
-  const systemInstruction = `You are NexaHR Assistant, an AI-powered HR chatbot for a company's HR management system.
-You help employees with HR-related questions about policies, procedures, benefits, leave, payroll, and more.
-Be professional, friendly, and concise. If you don't know something specific, guide users to contact HR directly.
-${companyPolicies ? `\nCompany Policies:\n${companyPolicies}` : ""}`;
+  const systemPrompt = `You are NexaHR Assistant, an AI HR chatbot. Help employees with HR questions about policies, leave, payroll, and procedures. Be professional, friendly, and concise. If unsure, direct them to HR.${companyPolicies ? `\n\nCompany Policies:\n${companyPolicies}` : ""}`;
 
-  const model = getGenAI().getGenerativeModel({ model: MODEL, systemInstruction });
-
-  const history = messages.slice(0, -1).map((m) => ({
-    role: m.role === "assistant" ? "model" : "user",
-    parts: [{ text: m.content }],
-  }));
-
-  const chat = model.startChat({ history });
-  const lastMessage = messages[messages.length - 1];
-  const result = await chat.sendMessage(lastMessage.content);
-  return result.response.text();
+  const result = await chat([
+    { role: "system", content: systemPrompt },
+    ...messages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+  ]);
+  return result;
 }
 
 export async function analyzeHRData(data: Record<string, unknown>, query: string) {
-  const prompt = `Analyze this HR data and answer the question concisely.
-
-Data: ${JSON.stringify(data, null, 2)}
-
-Question: ${query}
-
-Provide a concise, actionable insight.`;
-
-  return generate(prompt);
+  const result = await chat([
+    { role: "system", content: "You are an HR data analyst. Provide concise, actionable insights." },
+    {
+      role: "user",
+      content: `Analyze this HR data and answer: ${query}\n\nData: ${JSON.stringify(data, null, 2)}`,
+    },
+  ]);
+  return result;
 }

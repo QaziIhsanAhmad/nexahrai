@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { PLANS } from "@/lib/billing";
+import { PLANS } from "@/lib/plans";
 
-type PlanKey = "FREE" | "STARTER" | "PROFESSIONAL" | "ENTERPRISE";
+import type { PlanKey } from "@/lib/plans";
 
 interface Subscription {
   plan: PlanKey;

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { formatDate, getStatusColor } from "@/lib/utils";
+import { CURRENCIES } from "@/lib/currency";
 
 interface Employee {
   id: string;
@@ -15,11 +16,26 @@ interface Employee {
   employmentType: string;
   joinDate: string;
   basicSalary: number;
+  currency?: string;
   department?: { name: string };
   position?: { title: string };
   manager?: { firstName: string; lastName: string };
   user?: { email: string };
 }
+
+const emptyForm = {
+  firstName: "", lastName: "", email: "", phone: "",
+  departmentId: "", positionId: "",
+  joinDate: new Date().toISOString().split("T")[0],
+  employmentType: "FULL_TIME",
+  basicSalary: "",
+  currency: "USD",
+  gender: "",
+  nationality: "",
+  postcode: "",
+  city: "",
+  country: "",
+};
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -28,11 +44,12 @@ export default function EmployeesPage() {
   const [status, setStatus] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({
-    firstName: "", lastName: "", email: "", phone: "",
-    departmentId: "", positionId: "", joinDate: new Date().toISOString().split("T")[0],
-    employmentType: "FULL_TIME", basicSalary: "", gender: "", nationality: "",
-  });
+  const [form, setForm] = useState({ ...emptyForm });
+
+  // Postcode auto-location state
+  const [postcodeLoading, setPostcodeLoading] = useState(false);
+  const [locationFound, setLocationFound] = useState<string | null>(null);
+  const postcodeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchEmployees = useCallback(async () => {
     setLoading(true);
@@ -52,6 +69,36 @@ export default function EmployeesPage() {
 
   useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
 
+  // Postcode auto-lookup with 600ms debounce
+  function handlePostcodeChange(value: string) {
+    setForm(f => ({ ...f, postcode: value }));
+    setLocationFound(null);
+    if (postcodeTimerRef.current) clearTimeout(postcodeTimerRef.current);
+    if (!value.trim() || value.trim().length < 3) return;
+    postcodeTimerRef.current = setTimeout(async () => {
+      setPostcodeLoading(true);
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?postalcode=${encodeURIComponent(value)}&format=json&limit=1`,
+          { headers: { "Accept-Language": "en" } }
+        );
+        const data = await res.json();
+        if (data?.length > 0) {
+          const result = data[0];
+          const parts = (result.display_name || "").split(",").map((s: string) => s.trim());
+          const city = parts[1] || parts[0] || "";
+          const country = parts[parts.length - 1] || "";
+          setForm(f => ({ ...f, city, country }));
+          setLocationFound(`${city}, ${country}`);
+        }
+      } catch {
+        // silently fail
+      } finally {
+        setPostcodeLoading(false);
+      }
+    }, 600);
+  }
+
   async function handleAddEmployee(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
@@ -65,6 +112,7 @@ export default function EmployeesPage() {
       if (!res.ok) throw new Error(data.error);
       toast.success("Employee added successfully");
       setShowForm(false);
+      setForm({ ...emptyForm });
       fetchEmployees();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to add employee");
@@ -158,7 +206,9 @@ export default function EmployeesPage() {
                         {emp.employmentStatus.replace(/_/g, " ")}
                       </span>
                     </td>
-                    <td className="px-5 py-3.5 text-slate-600">${emp.basicSalary.toLocaleString()}</td>
+                    <td className="px-5 py-3.5 text-slate-600">
+                      {emp.currency || "USD"} {emp.basicSalary.toLocaleString()}
+                    </td>
                   </tr>
                 ))
               )}
@@ -181,7 +231,7 @@ export default function EmployeesPage() {
             </div>
             <form onSubmit={handleAddEmployee} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                {[
+                {([
                   ["firstName", "First Name", "text", true],
                   ["lastName", "Last Name", "text", true],
                   ["email", "Work Email", "email", true],
@@ -189,16 +239,33 @@ export default function EmployeesPage() {
                   ["nationality", "Nationality", "text", false],
                   ["gender", "Gender", "text", false],
                   ["joinDate", "Join Date", "date", true],
-                  ["basicSalary", "Basic Salary ($)", "number", false],
-                ].map(([key, label, type, required]) => (
+                ] as [keyof typeof form, string, string, boolean][]).map(([key, label, type, required]) => (
                   <div key={key as string}>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">{label as string}</label>
-                    <input type={type as string} required={required as boolean}
-                      value={form[key as keyof typeof form]}
-                      onChange={(e) => setForm((f) => ({ ...f, [key as string]: e.target.value }))}
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+                    <input type={type} required={required}
+                      value={form[key] as string}
+                      onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
                 ))}
+
+                {/* Salary + Currency */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Basic Salary</label>
+                  <input type="number" value={form.basicSalary} onChange={(e) => setForm(f => ({ ...f, basicSalary: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Currency</label>
+                  <select value={form.currency} onChange={(e) => setForm(f => ({ ...f, currency: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    {CURRENCIES.map(c => (
+                      <option key={c.code} value={c.code}>{c.code} — {c.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Employment Type */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Employment Type</label>
                   <select value={form.employmentType} onChange={(e) => setForm((f) => ({ ...f, employmentType: e.target.value }))}
@@ -208,7 +275,48 @@ export default function EmployeesPage() {
                     ))}
                   </select>
                 </div>
+
+                {/* Postcode with auto-fill */}
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Postcode / ZIP Code</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={form.postcode}
+                      onChange={(e) => handlePostcodeChange(e.target.value)}
+                      placeholder="e.g. SW1A 1AA or 10001"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 pr-8"
+                    />
+                    {postcodeLoading && (
+                      <svg className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-500 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                    )}
+                  </div>
+                  {locationFound && (
+                    <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      Location found: {locationFound}
+                    </p>
+                  )}
+                </div>
+
+                {/* City + Country auto-filled */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">City</label>
+                  <input value={form.city} onChange={(e) => setForm(f => ({ ...f, city: e.target.value }))}
+                    placeholder="Auto-filled from postcode"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Country</label>
+                  <input value={form.country} onChange={(e) => setForm(f => ({ ...f, country: e.target.value }))}
+                    placeholder="Auto-filled from postcode"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
               </div>
+
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowForm(false)}
                   className="px-4 py-2 text-sm text-slate-600 hover:text-slate-900 border border-slate-300 rounded-lg">Cancel</button>

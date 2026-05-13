@@ -4,27 +4,42 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-const nav = [
+type NavItem = {
+  label: string;
+  href: string;
+  icon: string;
+  badge?: "NEW" | "PRO" | "SOON";
+};
+
+const nav: { section: string; items: NavItem[] }[] = [
   {
     section: "Overview",
     items: [
       { label: "Dashboard", href: "/dashboard", icon: "grid" },
       { label: "Analytics", href: "/dashboard/analytics", icon: "chart" },
+      { label: "Headcount Planning", href: "/dashboard/headcount", icon: "headcount" },
+      { label: "HR Budget", href: "/dashboard/budget", icon: "budget" },
     ],
   },
   {
-    section: "Recruitment",
+    section: "Recruitment & Talent",
     items: [
       { label: "Jobs & Postings", href: "/dashboard/recruitment", icon: "briefcase" },
       { label: "AI Resume Parser", href: "/dashboard/ai-tools?tab=resume", icon: "sparkles" },
+      { label: "Internal Marketplace", href: "/dashboard/talent-marketplace", icon: "marketplace", badge: "NEW" },
+      { label: "Succession Planning", href: "/dashboard/succession", icon: "succession", badge: "NEW" },
+      { label: "Career Path Mapping", href: "/dashboard/careers", icon: "career", badge: "NEW" },
+      { label: "Promotion & Transfer", href: "/dashboard/promotions", icon: "promotion", badge: "NEW" },
     ],
   },
   {
     section: "Workforce",
     items: [
       { label: "Employees", href: "/dashboard/employees", icon: "users" },
+      { label: "Contractors", href: "/dashboard/contractors", icon: "contractor", badge: "NEW" },
       { label: "Attendance", href: "/dashboard/attendance", icon: "clock" },
       { label: "Leave Management", href: "/dashboard/attendance?tab=leave", icon: "calendar" },
+      { label: "Time Tracking", href: "/dashboard/time-tracking", icon: "time", badge: "NEW" },
       { label: "Shift & Scheduling", href: "/dashboard/scheduling", icon: "calendar-days" },
     ],
   },
@@ -32,25 +47,57 @@ const nav = [
     section: "HR Operations",
     items: [
       { label: "Payroll", href: "/dashboard/payroll", icon: "dollar" },
+      { label: "Benefits", href: "/dashboard/benefits", icon: "benefits", badge: "NEW" },
       { label: "Performance", href: "/dashboard/performance", icon: "trending" },
+      { label: "Compensation", href: "/dashboard/compensation", icon: "compensation", badge: "NEW" },
       { label: "Training & LMS", href: "/dashboard/training", icon: "book" },
       { label: "Documents", href: "/dashboard/documents", icon: "file" },
       { label: "Assets", href: "/dashboard/assets", icon: "monitor" },
+      { label: "Exit / Resign", href: "/dashboard/exit", icon: "logout" },
     ],
   },
   {
-    section: "AI Tools",
+    section: "Employee Experience",
+    items: [
+      { label: "Engagement Surveys", href: "/dashboard/engagement", icon: "engagement", badge: "NEW" },
+      { label: "eNPS & Feedback", href: "/dashboard/engagement?tab=enps", icon: "trending", badge: "NEW" },
+      { label: "Knowledge Base", href: "/dashboard/knowledge-base", icon: "book", badge: "NEW" },
+    ],
+  },
+  {
+    section: "Compliance & Legal",
+    items: [
+      { label: "Compliance Center", href: "/dashboard/compliance", icon: "compliance", badge: "NEW" },
+      { label: "GDPR & Privacy", href: "/dashboard/compliance?tab=gdpr", icon: "security", badge: "NEW" },
+      { label: "Tax Compliance", href: "/dashboard/compliance?tab=tax", icon: "dollar", badge: "NEW" },
+    ],
+  },
+  {
+    section: "AI Intelligence",
     items: [
       { label: "HR Chatbot", href: "/dashboard/ai-tools?tab=chatbot", icon: "bot" },
       { label: "Interview AI", href: "/dashboard/ai-tools?tab=interview", icon: "mic" },
       { label: "Policy Generator", href: "/dashboard/ai-tools?tab=policy", icon: "document" },
+      { label: "AI Insights", href: "/dashboard/ai-insights", icon: "insights", badge: "NEW" },
+    ],
+  },
+  {
+    section: "Integrations",
+    items: [
+      { label: "Integrations Hub", href: "/dashboard/integrations", icon: "integrations", badge: "NEW" },
+    ],
+  },
+  {
+    section: "Security & Admin",
+    items: [
+      { label: "Audit Logs", href: "/dashboard/audit-logs", icon: "audit", badge: "NEW" },
+      { label: "Security Center", href: "/dashboard/security", icon: "security", badge: "NEW" },
     ],
   },
   {
     section: "Self-Service",
     items: [
       { label: "My Portal", href: "/dashboard/self-service", icon: "user" },
-      { label: "Exit / Resign", href: "/dashboard/exit", icon: "logout" },
     ],
   },
   {
@@ -83,7 +130,37 @@ const icons: Record<string, React.ReactNode> = {
   logout: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>,
   "credit-card": <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>,
   settings: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+  // New icons
+  marketplace: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
+  succession: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>,
+  career: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>,
+  promotion: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>,
+  contractor: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+  time: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+  benefits: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>,
+  compensation: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 8h6m-5 0a3 3 0 110 6H9l3 3m-3-6h6m6 1a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+  engagement: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+  compliance: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+  security: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>,
+  integrations: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>,
+  audit: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>,
+  headcount: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
+  budget: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>,
+  insights: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>,
 };
+
+function Badge({ type }: { type: "NEW" | "PRO" | "SOON" }) {
+  const styles = {
+    NEW: "bg-green-100 text-green-700",
+    PRO: "bg-purple-100 text-purple-700",
+    SOON: "bg-slate-100 text-slate-500",
+  };
+  return (
+    <span className={`ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded ${styles[type]}`}>
+      {type}
+    </span>
+  );
+}
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -117,7 +194,7 @@ export default function Sidebar() {
                     ? pathname === "/dashboard"
                     : pathname.startsWith(item.href.split("?")[0]);
                 return (
-                  <li key={item.href}>
+                  <li key={item.href + item.label}>
                     <Link
                       href={item.href}
                       className={cn(
@@ -130,7 +207,8 @@ export default function Sidebar() {
                       <span className={cn("flex-shrink-0", active ? "text-blue-600" : "text-slate-400")}>
                         {icons[item.icon]}
                       </span>
-                      {item.label}
+                      <span className="truncate">{item.label}</span>
+                      {item.badge && <Badge type={item.badge} />}
                     </Link>
                   </li>
                 );

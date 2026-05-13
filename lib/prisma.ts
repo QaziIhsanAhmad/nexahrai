@@ -3,10 +3,11 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 function createPrismaClient() {
   const connectionString = process.env.DATABASE_URL!;
-  // In serverless (Vercel), limit pool to 1 to avoid connection exhaustion
+  const isRemote = connectionString?.includes("render.com") || connectionString?.includes("neon.tech");
   const adapter = new PrismaPg({
     connectionString,
     max: process.env.NODE_ENV === "production" ? 1 : 10,
+    ssl: isRemote ? { rejectUnauthorized: false } : undefined,
   });
   return new PrismaClient({ adapter });
 }

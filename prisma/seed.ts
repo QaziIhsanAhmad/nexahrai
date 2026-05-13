@@ -3,7 +3,11 @@ import { PrismaClient } from "../app/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+const isRemote = process.env.DATABASE_URL?.includes("render.com") || process.env.DATABASE_URL?.includes("neon.tech");
+const adapter = new PrismaPg({
+  connectionString: process.env.DATABASE_URL!,
+  ssl: isRemote ? { rejectUnauthorized: false } : undefined,
+});
 const prisma = new PrismaClient({ adapter });
 
 async function main() {

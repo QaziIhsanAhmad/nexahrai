@@ -28,21 +28,34 @@ function LiveGreeting({ name }: { name: string }) {
   const h = now.getHours();
   const icon = h < 12 ? "☀️" : h < 17 ? "🌤️" : h < 21 ? "🌆" : "🌙";
   const label = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : h < 21 ? "Good evening" : "Good night";
-  const time = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+
+  return (
+    <span className="text-sm font-medium text-slate-500 flex items-center gap-1.5">
+      <span className="text-base leading-none">{icon}</span>
+      {label},{" "}
+      <span className="text-slate-900 font-semibold">{name.split(" ")[0]}</span>
+    </span>
+  );
+}
+
+function LiveClock() {
+  const [now, setNow] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setNow(new Date());
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  if (!now) return null;
+
+  const time = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });
   const date = now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
   return (
-    <div className="flex items-center gap-3">
-      <div className="hidden md:flex flex-col items-end leading-none mr-1">
-        <span className="text-[11px] text-slate-400">{date}</span>
-        <span className="text-xs font-semibold text-slate-700 tabular-nums">{time}</span>
-      </div>
-      <div className="h-7 w-px bg-slate-200 hidden md:block" />
-      <span className="text-sm font-medium text-slate-500 flex items-center gap-1.5">
-        <span className="text-base leading-none">{icon}</span>
-        {label},{" "}
-        <span className="text-slate-900 font-semibold">{name.split(" ")[0]}</span>
-      </span>
+    <div className="hidden md:flex flex-col items-end leading-none">
+      <span className="text-xs font-bold text-slate-800 tabular-nums tracking-tight">{time}</span>
+      <span className="text-[10px] text-slate-400 mt-0.5">{date}</span>
     </div>
   );
 }
@@ -71,6 +84,10 @@ export default function Navbar({ user }: NavbarProps) {
       <LiveGreeting name={user.name} />
 
       <div className="flex items-center gap-3">
+        {/* Live Clock */}
+        <LiveClock />
+        <div className="hidden md:block h-7 w-px bg-slate-200" />
+
         {/* Notifications */}
         <Link
           href="/dashboard?panel=notifications"

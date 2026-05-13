@@ -160,9 +160,12 @@ model Company {
   industry         String?
   size             String?
   taxId            String?
-  plan             SubscriptionPlan @default(FREE)
-  planExpiresAt    DateTime?
-  isActive         Boolean          @default(true)
+  plan                 SubscriptionPlan @default(FREE)
+  planExpiresAt        DateTime?
+  stripeCustomerId     String?          @unique
+  stripeSubscriptionId String?          @unique
+  stripePriceId        String?
+  isActive             Boolean          @default(true)
   settings         Json?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt

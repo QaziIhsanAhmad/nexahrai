@@ -12,6 +12,7 @@ const PUBLIC_PATHS = [
   "/api/auth/login",
   "/api/auth/register",
   "/api/auth/request-verification",
+  "/api/webhooks",
   "/_next",
   "/favicon.ico",
 ];

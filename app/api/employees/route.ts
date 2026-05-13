@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
-import { hashPassword, } from "@/lib/auth";
+import { hashPassword } from "@/lib/auth";
 import { generateEmployeeId } from "@/lib/utils";
+import { getPlanLimit } from "@/lib/billing";
 
 export async function GET(request: NextRequest) {
   try {
@@ -59,6 +60,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     if (!session.companyId) return NextResponse.json({ error: "No company" }, { status: 400 });
+
+    // Enforce plan employee limit
+    const company = await prisma.company.findUnique({
+      where: { id: session.companyId },
+      select: { plan: true },
+    });
+    const limit = getPlanLimit(company?.plan ?? "FREE");
+    const currentCount = await prisma.employee.count({
+      where: { companyId: session.companyId, employmentStatus: { not: "TERMINATED" } },
+    });
+    if (currentCount >= limit) {
+      return NextResponse.json({
+        error: `Your ${company?.plan ?? "FREE"} plan allows up to ${limit} employees. Please upgrade to add more.`,
+        upgradeRequired: true,
+      }, { status: 403 });
+    }
 
     const body = await request.json();
     const {

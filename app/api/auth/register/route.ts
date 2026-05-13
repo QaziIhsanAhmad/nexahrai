@@ -1,15 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
+import { jwtVerify } from "jose";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, createSession } from "@/lib/auth";
 import { slugify, generateEmployeeId } from "@/lib/utils";
 import { cookies } from "next/headers";
 
+const SECRET = new TextEncoder().encode(
+  process.env.NEXTAUTH_SECRET || "nexahrai-secret"
+);
+
 export async function POST(request: NextRequest) {
   try {
-    const { companyName, companyEmail, name, email, password } = await request.json();
+    const { token, companyName, companyEmail, name, password } = await request.json();
 
-    if (!companyName || !companyEmail || !name || !email || !password) {
+    if (!token || !companyName || !companyEmail || !name || !password) {
       return NextResponse.json({ error: "All fields required" }, { status: 400 });
+    }
+
+    // Verify the email verification token
+    let email: string;
+    try {
+      const { payload } = await jwtVerify(token, SECRET);
+      if (payload.purpose !== "registration") throw new Error("Invalid token purpose");
+      email = payload.email as string;
+    } catch {
+      return NextResponse.json({ error: "Verification link is invalid or expired. Please request a new one." }, { status: 400 });
     }
 
     const existing = await prisma.user.findUnique({ where: { email } });
@@ -44,7 +59,6 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Create employee record for admin
     await prisma.employee.create({
       data: {
         employeeId: generateEmployeeId("ADM"),
@@ -57,10 +71,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    const { token, user: sessionUser } = await createSession(user.id);
+    const { token: sessionToken, user: sessionUser } = await createSession(user.id);
 
     const cookieStore = await cookies();
-    cookieStore.set("nexahrai_token", token, {
+    cookieStore.set("nexahrai_token", sessionToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",

@@ -8,8 +8,10 @@ const SECRET = new TextEncoder().encode(
 const PUBLIC_PATHS = [
   "/login",
   "/register",
+  "/complete-registration",
   "/api/auth/login",
   "/api/auth/register",
+  "/api/auth/request-verification",
   "/_next",
   "/favicon.ico",
 ];

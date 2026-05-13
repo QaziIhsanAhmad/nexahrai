@@ -29,6 +29,39 @@ export async function sendEmail({
   }
 }
 
+export function verificationEmailHtml(data: {
+  email: string;
+  verifyUrl: string;
+}) {
+  return `
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f8fafc;">
+  <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+    <div style="background: #2563EB; padding: 28px 32px;">
+      <h1 style="color: white; margin: 0; font-size: 22px; font-weight: 700;">NexaHR AI</h1>
+      <p style="color: #bfdbfe; margin: 4px 0 0; font-size: 14px;">HR Management Platform</p>
+    </div>
+    <div style="padding: 32px;">
+      <h2 style="color: #1e293b; margin: 0 0 8px; font-size: 20px;">Verify your email address</h2>
+      <p style="color: #64748b; margin: 0 0 24px; font-size: 15px;">
+        You requested to create a NexaHR AI account for <strong>${data.email}</strong>. Click the button below to verify your email and complete registration.
+      </p>
+      <a href="${data.verifyUrl}" style="display: inline-block; background: #2563EB; color: white; text-decoration: none; padding: 13px 28px; border-radius: 8px; font-weight: 600; font-size: 15px;">
+        Verify Email &amp; Register
+      </a>
+      <p style="color: #94a3b8; font-size: 13px; margin: 24px 0 0;">
+        This link expires in <strong>1 hour</strong>. If you did not request this, you can safely ignore this email.
+      </p>
+      <p style="color: #cbd5e1; font-size: 12px; margin: 8px 0 0; word-break: break-all;">
+        Or copy this link: ${data.verifyUrl}
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
 export function interviewInviteHtml(data: {
   candidateName: string;
   jobTitle: string;

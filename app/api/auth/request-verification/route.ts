@@ -29,11 +29,16 @@ export async function POST(request: NextRequest) {
     const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
     const verifyUrl = `${baseUrl}/complete-registration?token=${token}`;
 
-    await sendEmail({
+    const result = await sendEmail({
       to: email,
       subject: "Verify your email — NexaHR AI",
       html: verificationEmailHtml({ email, verifyUrl }),
     });
+
+    if (!result.success) {
+      console.error("Email send failed:", result.error);
+      return NextResponse.json({ error: "Failed to send verification email. Please check your email address and try again." }, { status: 500 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -19,16 +19,21 @@ export async function sendEmail({
   text?: string;
 }) {
   try {
-    const result = await getResend().emails.send({
+    const { data, error } = await getResend().emails.send({
       from: FROM,
       to: Array.isArray(to) ? to : [to],
       subject,
       html,
       text,
     });
-    return { success: true, id: result.data?.id };
+    if (error) {
+      console.error("Resend error:", JSON.stringify(error));
+      return { success: false, error };
+    }
+    console.log("Email sent:", data?.id, "to:", to);
+    return { success: true, id: data?.id };
   } catch (error) {
-    console.error("Email send error:", error);
+    console.error("Email send exception:", error);
     return { success: false, error };
   }
 }

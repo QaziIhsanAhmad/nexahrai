@@ -1,11 +1,50 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { getInitials } from "@/lib/utils";
 
 interface NavbarProps {
   user: { name: string; email: string; role: string };
+}
+
+function LiveGreeting({ name }: { name: string }) {
+  const [now, setNow] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setNow(new Date());
+    const t = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(t);
+  }, []);
+
+  if (!now) {
+    return (
+      <span className="text-sm font-medium text-slate-500">
+        Welcome, <span className="text-slate-900 font-semibold">{name.split(" ")[0]}</span>
+      </span>
+    );
+  }
+
+  const h = now.getHours();
+  const icon = h < 12 ? "☀️" : h < 17 ? "🌤️" : h < 21 ? "🌆" : "🌙";
+  const label = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : h < 21 ? "Good evening" : "Good night";
+  const time = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+  const date = now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+
+  return (
+    <div className="flex items-center gap-3">
+      <div className="hidden md:flex flex-col items-end leading-none mr-1">
+        <span className="text-[11px] text-slate-400">{date}</span>
+        <span className="text-xs font-semibold text-slate-700 tabular-nums">{time}</span>
+      </div>
+      <div className="h-7 w-px bg-slate-200 hidden md:block" />
+      <span className="text-sm font-medium text-slate-500 flex items-center gap-1.5">
+        <span className="text-base leading-none">{icon}</span>
+        {label},{" "}
+        <span className="text-slate-900 font-semibold">{name.split(" ")[0]}</span>
+      </span>
+    </div>
+  );
 }
 
 export default function Navbar({ user }: NavbarProps) {
@@ -29,12 +68,7 @@ export default function Navbar({ user }: NavbarProps) {
 
   return (
     <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0">
-      <div className="flex items-center gap-4">
-        <h2 className="text-sm font-medium text-slate-500">
-          Welcome back,{" "}
-          <span className="text-slate-900 font-semibold">{user.name.split(" ")[0]}</span>
-        </h2>
-      </div>
+      <LiveGreeting name={user.name} />
 
       <div className="flex items-center gap-3">
         {/* Notifications */}

@@ -5,7 +5,7 @@ function getResend(): Resend {
   if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY);
   return _resend;
 }
-const FROM = process.env.FROM_EMAIL || "noreply@nexahrail.com";
+const FROM = process.env.FROM_EMAIL || "noreply@nexahrai.com";
 
 export async function sendEmail({
   to,

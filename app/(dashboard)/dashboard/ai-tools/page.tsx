@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
 
-type Tab = "chatbot" | "resume" | "interview" | "policy";
+type Tab = "chatbot" | "resume" | "ats" | "interview" | "policy";
 
 interface ChatMsg {
   role: "user" | "assistant";
@@ -21,6 +21,12 @@ export default function AIToolsPage() {
   const [chatLoading, setChatLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const sessionId = useRef(`session_${Date.now()}`);
+
+  // ATS checker state
+  const [atsResume, setAtsResume] = useState("");
+  const [atsJD, setAtsJD] = useState("");
+  const [atsResult, setAtsResult] = useState<Record<string, unknown> | null>(null);
+  const [atsLoading, setAtsLoading] = useState(false);
 
   // Resume parser state
   const [resumeText, setResumeText] = useState("");
@@ -76,6 +82,27 @@ export default function AIToolsPage() {
       setMessages((prev) => [...prev, { role: "assistant", content: "Sorry, I encountered an error. Please try again." }]);
     } finally {
       setChatLoading(false);
+    }
+  }
+
+  async function handleAtsCheck() {
+    if (!atsResume.trim()) { toast.error("Paste a resume to check"); return; }
+    setAtsLoading(true);
+    setAtsResult(null);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "ats-check", resumeText: atsResume, jobDescription: atsJD }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setAtsResult(data);
+      toast.success("ATS analysis complete!");
+    } catch {
+      toast.error("ATS check failed — please try again");
+    } finally {
+      setAtsLoading(false);
     }
   }
 
@@ -146,6 +173,7 @@ export default function AIToolsPage() {
 
   const tabs = [
     { id: "chatbot" as Tab, label: "HR Chatbot", icon: "💬" },
+    { id: "ats" as Tab, label: "ATS Checker", icon: "📊" },
     { id: "resume" as Tab, label: "Resume Parser", icon: "🤖" },
     { id: "interview" as Tab, label: "Interview AI", icon: "🎯" },
     { id: "policy" as Tab, label: "Policy Generator", icon: "📝" },
@@ -155,7 +183,7 @@ export default function AIToolsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">AI Tools</h1>
-        <p className="text-slate-500 text-sm mt-1">Powered by Anthropic Claude</p>
+        <p className="text-slate-500 text-sm mt-1">Powered by Groq · Llama 3 (free & open-source)</p>
       </div>
 
       {/* Tabs */}
@@ -206,6 +234,228 @@ export default function AIToolsPage() {
               className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg text-sm font-medium transition-colors">
               Send
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ATS Checker */}
+      {tab === "ats" && (
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+          {/* Input panel */}
+          <div className="lg:col-span-2 space-y-4">
+            <div className="bg-white rounded-xl border border-slate-200 p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center text-base">📊</div>
+                <div>
+                  <h2 className="font-semibold text-slate-900 text-sm">ATS Resume Checker</h2>
+                  <p className="text-xs text-slate-400">Score your CV against ATS systems</p>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Resume / CV Text <span className="text-red-500">*</span></label>
+                  <textarea
+                    rows={10}
+                    value={atsResume}
+                    onChange={(e) => setAtsResume(e.target.value)}
+                    placeholder="Paste the full resume text here (copy-paste from Word or PDF)..."
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none font-mono"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">{atsResume.length} characters · {atsResume.split(/\s+/).filter(Boolean).length} words</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                    Job Description <span className="text-slate-400 font-normal">(optional — for match score)</span>
+                  </label>
+                  <textarea
+                    rows={5}
+                    value={atsJD}
+                    onChange={(e) => setAtsJD(e.target.value)}
+                    placeholder="Paste the job description to check keyword match..."
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+                  />
+                </div>
+                <button
+                  onClick={handleAtsCheck}
+                  disabled={atsLoading || !atsResume.trim()}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white py-2.5 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+                >
+                  {atsLoading ? (
+                    <>
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                      </svg>
+                      Analysing with AI...
+                    </>
+                  ) : "Run ATS Check"}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Results panel */}
+          <div className="lg:col-span-3">
+            {!atsResult ? (
+              <div className="bg-white rounded-xl border border-slate-200 h-full flex flex-col items-center justify-center text-center p-10 min-h-80">
+                <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center text-3xl mb-4">📊</div>
+                <p className="font-semibold text-slate-700">ATS Analysis Results</p>
+                <p className="text-slate-400 text-sm mt-1">Paste a resume and click Run ATS Check</p>
+                <div className="mt-6 grid grid-cols-3 gap-3 w-full max-w-xs">
+                  {["ATS Score", "Keyword Match", "Section Score"].map(l => (
+                    <div key={l} className="bg-slate-50 rounded-lg p-3 text-center">
+                      <div className="w-8 h-8 bg-slate-200 rounded-full mx-auto mb-1 animate-pulse" />
+                      <p className="text-[10px] text-slate-400">{l}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (() => {
+              const r = atsResult;
+              const score = r.atsScore as number;
+              const scoreColor = score >= 75 ? "#22c55e" : score >= 50 ? "#f59e0b" : "#ef4444";
+              const scoreLabel = score >= 75 ? "ATS Friendly" : score >= 50 ? "Needs Work" : "Poor";
+              const scoreLabelCls = score >= 75 ? "text-green-600 bg-green-50" : score >= 50 ? "text-yellow-600 bg-yellow-50" : "text-red-600 bg-red-50";
+              const sections = r.sections as Record<string, { present: boolean; score: number; maxScore: number; issues: string[] }>;
+              const keywords = r.keywords as { found: string[]; missing: string[]; density: number };
+
+              return (
+                <div className="space-y-4">
+                  {/* Score hero */}
+                  <div className="bg-white rounded-xl border border-slate-200 p-5">
+                    <div className="flex items-center gap-6">
+                      {/* Ring */}
+                      <div className="relative w-24 h-24 flex-shrink-0">
+                        <svg className="w-24 h-24 -rotate-90" viewBox="0 0 100 100">
+                          <circle cx="50" cy="50" r="38" fill="none" stroke="#f1f5f9" strokeWidth="10"/>
+                          <circle cx="50" cy="50" r="38" fill="none" stroke={scoreColor} strokeWidth="10"
+                            strokeLinecap="round"
+                            strokeDasharray={`${(score / 100) * 238.8} 238.8`}/>
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <span className="text-2xl font-bold text-slate-900">{score}</span>
+                          <span className="text-[10px] text-slate-400">/ 100</span>
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="text-lg font-bold text-slate-900">ATS Score</h3>
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${scoreLabelCls}`}>{scoreLabel}</span>
+                        </div>
+                        <p className="text-sm text-slate-500 mb-3">Readability: <span className="font-semibold text-slate-700">{r.readabilityScore as number}/100</span>
+                          {(r.jobMatchScore as number) > 0 && <> · Job Match: <span className="font-semibold text-slate-700">{r.jobMatchScore as number}%</span></>}
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {(r.strengths as string[] || []).slice(0, 3).map((s, i) => (
+                            <span key={i} className="text-[11px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full">{s}</span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Sections breakdown */}
+                  <div className="bg-white rounded-xl border border-slate-200 p-5">
+                    <h3 className="font-semibold text-slate-900 text-sm mb-3">Section Analysis</h3>
+                    <div className="space-y-2.5">
+                      {Object.entries(sections || {}).map(([key, sec]) => {
+                        const pct = sec.maxScore > 0 ? Math.round((sec.score / sec.maxScore) * 100) : 0;
+                        const barColor = pct >= 75 ? "bg-green-500" : pct >= 40 ? "bg-yellow-500" : "bg-red-400";
+                        return (
+                          <div key={key}>
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] ${sec.present ? "bg-green-100 text-green-600" : "bg-red-100 text-red-500"}`}>
+                                  {sec.present ? "✓" : "✗"}
+                                </span>
+                                <span className="text-xs font-medium text-slate-700 capitalize">{key.replace(/([A-Z])/g, " $1")}</span>
+                              </div>
+                              <span className="text-xs text-slate-500">{sec.score}/{sec.maxScore}</span>
+                            </div>
+                            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                              <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }}/>
+                            </div>
+                            {sec.issues?.length > 0 && (
+                              <p className="text-[10px] text-orange-600 mt-0.5">⚠ {sec.issues[0]}</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Keywords */}
+                  <div className="bg-white rounded-xl border border-slate-200 p-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-semibold text-slate-900 text-sm">Keyword Analysis</h3>
+                      <span className="text-xs text-slate-500">Density: <strong>{keywords?.density ?? 0}%</strong></span>
+                    </div>
+                    <div className="space-y-3">
+                      {(keywords?.found || []).length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-green-700 mb-1.5">✓ Found Keywords ({(keywords.found || []).length})</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {keywords.found.map((k, i) => (
+                              <span key={i} className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">{k}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {(keywords?.missing || []).length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-red-600 mb-1.5">✗ Missing Keywords ({(keywords.missing || []).length})</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {keywords.missing.map((k, i) => (
+                              <span key={i} className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">{k}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {(r.matchedJobKeywords as string[] || []).length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-blue-700 mb-1.5">🎯 Matched Job Keywords</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {(r.matchedJobKeywords as string[]).map((k, i) => (
+                              <span key={i} className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{k}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Recommendations */}
+                  {(r.recommendations as string[] || []).length > 0 && (
+                    <div className="bg-white rounded-xl border border-slate-200 p-5">
+                      <h3 className="font-semibold text-slate-900 text-sm mb-3">Recommendations to Improve Score</h3>
+                      <ul className="space-y-2">
+                        {(r.recommendations as string[]).map((rec, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
+                            <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">{i + 1}</span>
+                            {rec}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Formatting issues */}
+                  {(r.formattingIssues as string[] || []).length > 0 && (
+                    <div className="bg-orange-50 rounded-xl border border-orange-200 p-4">
+                      <h3 className="font-semibold text-orange-800 text-sm mb-2">⚠ Formatting Issues</h3>
+                      <ul className="space-y-1">
+                        {(r.formattingIssues as string[]).map((issue, i) => (
+                          <li key={i} className="text-sm text-orange-700 flex items-start gap-1.5">
+                            <span className="mt-1 w-1 h-1 bg-orange-500 rounded-full flex-shrink-0"/>
+                            {issue}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

@@ -7,6 +7,7 @@ import {
   generateHRDocument,
   hrChatbot,
   analyzeHRData,
+  atsCheck,
 } from "@/lib/ai";
 import { prisma } from "@/lib/prisma";
 
@@ -132,6 +133,13 @@ export async function POST(request: NextRequest) {
         const { data, query } = body;
         const insight = await analyzeHRData(data, query);
         return NextResponse.json({ insight });
+      }
+
+      case "ats-check": {
+        const { resumeText, jobDescription } = body;
+        if (!resumeText) return NextResponse.json({ error: "Resume text required" }, { status: 400 });
+        const result = await atsCheck(resumeText, jobDescription);
+        return NextResponse.json(result);
       }
 
       default:

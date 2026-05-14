@@ -161,3 +161,44 @@ export async function analyzeHRData(data: Record<string, unknown>, query: string
   ]);
   return result;
 }
+
+export async function atsCheck(resumeText: string, jobDescription?: string) {
+  const text = await chat([
+    {
+      role: "system",
+      content: "You are an expert ATS (Applicant Tracking System) analyst. Analyze resumes for ATS compatibility and return only valid JSON with no markdown.",
+    },
+    {
+      role: "user",
+      content: `Analyze this resume for ATS compatibility and return a JSON object with exactly this structure:
+{
+  "atsScore": number (0-100),
+  "sections": {
+    "contactInfo": { "present": boolean, "score": number, "maxScore": number, "issues": string[] },
+    "summary": { "present": boolean, "score": number, "maxScore": number, "issues": string[] },
+    "experience": { "present": boolean, "score": number, "maxScore": number, "issues": string[] },
+    "education": { "present": boolean, "score": number, "maxScore": number, "issues": string[] },
+    "skills": { "present": boolean, "score": number, "maxScore": number, "issues": string[] },
+    "certifications": { "present": boolean, "score": number, "maxScore": number, "issues": string[] }
+  },
+  "keywords": {
+    "found": string[],
+    "missing": string[],
+    "density": number
+  },
+  "formattingIssues": string[],
+  "strengths": string[],
+  "recommendations": string[],
+  "readabilityScore": number (0-100)${jobDescription ? ',\n  "jobMatchScore": number (0-100),\n  "matchedJobKeywords": string[],\n  "missingJobKeywords": string[]' : ""}
+}
+
+Resume:
+${resumeText}
+${jobDescription ? `\nJob Description:\n${jobDescription}` : ""}`,
+    },
+  ]);
+
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error("Failed to parse ATS response");
+  return JSON.parse(jsonMatch[0]);
+}
